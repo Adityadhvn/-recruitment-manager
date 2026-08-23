@@ -70,13 +70,12 @@ python -m pytest -q            # expect: 4 passed
 streamlit run app.py
 ```
 
-## Deployment (Streamlit Community Cloud)
+## Steps used for Deployment to Streamlit Community Cloud
 
 1. Push the repo to GitHub.
 2. Create a new app on Streamlit Community Cloud, pointing to `app.py`.
-3. Deploy, then verify: sample dataset loads, filters work, debarring excludes a student, CSV export works.
-4. Add the live URL to this README.
-
+3. Deploy.
+   
 No secrets required.
 
 ## Repository structure
