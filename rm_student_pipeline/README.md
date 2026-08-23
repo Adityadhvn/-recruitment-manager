@@ -4,9 +4,9 @@ A Streamlit app that turns a messy student dataset into a recruitment-ready shor
 
 ## Demo
 
-**Live app:** _Add your deployed Streamlit URL here_
+**Live app:** https://rm-manager-aditya-dhawan.streamlit.app/
 
-**90-second video:** _Add your demo video URL here_
+**90-second video:** https://drive.google.com/file/d/1lfn0jUVypSR1nbQXlC9yNtaWJ-adUA0l/view?usp=sharing
 
 ## Features
 
