@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import re
 from dataclasses import dataclass
 from typing import BinaryIO
@@ -52,24 +51,21 @@ def load_uploaded_file(file_obj: BinaryIO, filename: str) -> pd.DataFrame:
 
 
 def _clean_number(value: object) -> float | None:
+    """Pull a numeric score out of messy input, e.g. '28 marks' -> 28.0."""
     if pd.isna(value):
         return None
     text = str(value).strip()
     if not text:
         return None
     match = re.search(r"-?\d+(?:\.\d+)?", text.replace(",", ""))
-    if not match:
-        return None
-    return float(match.group())
+    return float(match.group()) if match else None
 
 
 def _clean_name(value: object) -> str:
     if pd.isna(value) or not str(value).strip():
         return "Unknown Student"
-    text = str(value).strip()
-    text = text.replace('"', "").replace("'", "").strip()
-    text = re.sub(r"\s+", " ", text)
-    return text.title()
+    text = str(value).strip().replace('"', "").replace("'", "")
+    return re.sub(r"\s+", " ", text).title()
 
 
 def _clean_gender(value: object) -> str:
@@ -89,17 +85,20 @@ def _clean_grade(value: object) -> float | None:
 def _student_id(row: pd.Series, sequence: int) -> str:
     """Stable-ish human-friendly ID; sequence guarantees uniqueness for collisions."""
     canonical = "|".join(
-        [
-            str(row.get("Name", "")),
-            str(row.get("Gender", "")),
-            str(row.get("Grade", "")),
-            str(row.get("Math", "")),
-            str(row.get("Science", "")),
-            str(row.get("English", "")),
-        ]
+        str(row.get(field, ""))
+        for field in ("Name", "Gender", "Grade", "Math", "Science", "English")
     )
     digest = hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:6].upper()
     return f"DTU-{digest}-{sequence:04d}"
+
+
+def _looks_like_parsed_string(original: object, cleaned: float | None) -> bool:
+    """True if a raw value contained letters but still yielded a numeric score."""
+    return (
+        isinstance(original, str)
+        and bool(re.search(r"[A-Za-z]", original))
+        and pd.notna(cleaned)
+    )
 
 
 def clean_student_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]:
@@ -120,11 +119,9 @@ def clean_student_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]
     if raw is None or raw.empty:
         raise PipelineError("The uploaded file contains no rows.")
 
-    missing_cols = [c for c in REQUIRED_COLUMNS if c not in raw.columns]
+    missing_cols = [col for col in REQUIRED_COLUMNS if col not in raw.columns]
     if missing_cols:
-        raise PipelineError(
-            "Missing required columns: " + ", ".join(missing_cols)
-        )
+        raise PipelineError("Missing required columns: " + ", ".join(missing_cols))
 
     df = raw[REQUIRED_COLUMNS].copy()
     input_rows = len(df)
@@ -139,7 +136,10 @@ def clean_student_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]
     for col in SCORE_COLUMNS:
         original = df[col].copy()
         cleaned = original.map(_clean_number)
-        parse_count += int((original.map(lambda x: isinstance(x, str) and bool(re.search(r"[A-Za-z]", x))) & cleaned.notna()).sum())
+        parse_count += sum(
+            _looks_like_parsed_string(raw_val, clean_val)
+            for raw_val, clean_val in zip(original, cleaned)
+        )
         df[col] = pd.to_numeric(cleaned, errors="coerce")
         df.loc[~df[col].between(0, 100, inclusive="both"), col] = pd.NA
 
@@ -204,5 +204,4 @@ def clean_student_data(raw: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]
 
 def dataframe_to_csv_bytes(df: pd.DataFrame) -> bytes:
     """Return UTF-8 CSV bytes suitable for st.download_button."""
-    export_df = df.copy()
-    return export_df.to_csv(index=False).encode("utf-8")
+    return df.copy().to_csv(index=False).encode("utf-8")
